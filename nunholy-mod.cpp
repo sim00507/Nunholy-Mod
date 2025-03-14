@@ -7,6 +7,7 @@
 
 bool DEBUG_MODE = false;
 
+// wchar_t* → std::string 변환 함수
 std::string WStringToString(const std::wstring& wstr) {
     std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
     return converter.to_bytes(wstr);
@@ -51,6 +52,19 @@ DWORD_PTR GetDynamicAddress(HANDLE hProcess, DWORD_PTR baseAddress, DWORD_PTR of
     return address;
 }
 
+// Preiya의 `baseAddress`를 새로 계산하는 함수 (새로고침 기능)
+void RefreshBaseAddress(HANDLE hProcess, DWORD_PTR unityPlayerBase, DWORD_PTR basePointer, DWORD_PTR pointerOffsets[], int levels, DWORD_PTR& baseAddress, DWORD_PTR& maxHealthAddress) {
+    maxHealthAddress = GetDynamicAddress(hProcess, unityPlayerBase + basePointer, pointerOffsets, levels);
+
+    // baseAddress 계산 (maxHealth - 0x90)
+    baseAddress = maxHealthAddress - 0x90;
+
+    if (DEBUG_MODE) {
+        std::cout << "[DEBUG] (새로고침) maxHealthAddress: 0x" << std::hex << maxHealthAddress << std::endl;
+        std::cout << "[DEBUG] (새로고침) baseAddress (Preiya 인스턴스): 0x" << std::hex << baseAddress << std::endl;
+    }
+}
+
 int main() {
     // 디버깅 모드
     std::cout << "디버깅 모드를 활성화할까요? (1: 활성화 / 0: 비활성화): ";
@@ -58,8 +72,36 @@ int main() {
 
     DWORD pid;
     HWND hwnd = FindWindowW(NULL, L"Nunholy"); 
+    if (DEBUG_MODE) {
+        if (hwnd) {
+            std::cout << "[DEBUG] 게임 창 핸들 찾음: 0x" << std::hex << (DWORD_PTR)hwnd << std::endl;
+        }
+        else {
+            std::cout << "[DEBUG] 게임 창을 찾을 수 없음!" << std::endl;
+        }
+    }
+
     GetWindowThreadProcessId(hwnd, &pid);
+    if (DEBUG_MODE) {
+        if (pid) {
+            std::cout << "[DEBUG] 프로세스 ID (PID): " << std::dec << pid << std::endl;
+        }
+        else {
+            std::cout << "[DEBUG] 프로세스 ID를 찾을 수 없음!" << std::endl;
+        }
+    }
+
+
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if (DEBUG_MODE) {
+        if (hProcess) {
+            std::cout << "[DEBUG] 프로세스 핸들 획득: 0x" << std::hex << (DWORD_PTR)hProcess << std::endl;
+        }
+        else {
+            std::cout << "[DEBUG] 프로세스 핸들 획득 실패!" << std::endl;
+        }
+    }
+
 
     if (!hProcess) {
         std::cout << "프로세스를 열 수 없음." << std::endl;
@@ -103,7 +145,8 @@ int main() {
         std::cout << "2. Health 변경\n";
         std::cout << "3. Shield 변경\n";
         std::cout << "4. Speed 변경\n";
-        std::cout << "5. 종료\n";
+        std::cout << "5. 새로고침 (던전 입장 후 다시 찾기)\n";
+        std::cout << "6. 종료\n";
         std::cout << "선택: ";
         std::cin >> choice;
 
@@ -112,31 +155,36 @@ int main() {
             std::cout << "변경할 Max Health 값을 입력하세요: ";
             std::cin >> newValue;
             WriteProcessMemory(hProcess, (LPVOID)(maxHealthAddress), &newValue, sizeof(newValue), NULL);
-            std::cout << "Max Health가 " << newValue << "으로 변경되었습니다!\n";
+            std::cout << "Max Health가 " << std::dec << newValue << "으로 변경되었습니다!\n";
             if (DEBUG_MODE) std::cout << "[DEBUG] Max Health 변경 완료: " << newValue << std::endl;
             break;
         case 2:
             std::cout << "변경할 Health 값을 입력하세요: ";
             std::cin >> newValue;
             WriteProcessMemory(hProcess, (LPVOID)(healthAddress), &newValue, sizeof(newValue), NULL);
-            std::cout << "Health가 " << newValue << "으로 변경되었습니다!\n";
+            std::cout << "Health가 " << std::dec << newValue << "으로 변경되었습니다!\n";
             if (DEBUG_MODE) std::cout << "[DEBUG] Health 변경 완료: " << newValue << std::endl;
             break;
         case 3:
             std::cout << "변경할 Shield 값을 입력하세요: ";
             std::cin >> newValue;
             WriteProcessMemory(hProcess, (LPVOID)(shieldAddress), &newValue, sizeof(newValue), NULL);
-            std::cout << "Shield가 " << newValue << "으로 변경되었습니다!\n";
+            std::cout << "Shield가 " << std::dec << newValue << "으로 변경되었습니다!\n";
             if (DEBUG_MODE) std::cout << "[DEBUG] Shield 변경 완료: " << newValue << std::endl;
             break;
         case 4:
             std::cout << "변경할 Speed 값을 입력하세요 (소수점 가능): ";
             std::cin >> newSpeed;
             WriteProcessMemory(hProcess, (LPVOID)(speedAddress), &newSpeed, sizeof(newSpeed), NULL);
-            std::cout << "Speed가 " << newSpeed << "으로 변경되었습니다!\n";
+            std::cout << "Speed가 " << std::dec << newSpeed << "으로 변경되었습니다!\n";
             if (DEBUG_MODE) std::cout << "[DEBUG] Speed 변경 완료: " << newSpeed << std::endl;
             break;
         case 5:
+            std::cout << "새로고침 중...\n";
+            RefreshBaseAddress(hProcess, unityPlayerBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
+            std::cout << "새로고침 완료!\n";
+            break;
+        case 6:
             CloseHandle(hProcess);
             return 0;
         default:

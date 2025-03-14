@@ -30,3 +30,52 @@
 *.exe
 *.out
 *.app
+
+# etc
+.vs/
+*.vcxproj.user
+*.suo
+*.ncb
+*.pdb
+*.opendb
+*.VC.db
+*.ipch
+*.tlog
+*.obj
+*.log
+*.sdf
+*.ilk
+*.idb
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+Testing/
+Makefile
+cmake_install.cmake
+_compile_commands.json
+
+# build
+Debug/
+Release/
+x64/
+x86/
+build/
+out/
+bin/
+obj/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Git
+.git/
+.gitignore
+
+# log
+*.log
+*.temp
+*.tmp
+*.cache

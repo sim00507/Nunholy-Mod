@@ -64,6 +64,22 @@ void RefreshBaseAddress(HANDLE hProcess, DWORD_PTR unityPlayerBase, DWORD_PTR ba
         std::cout << "[DEBUG] (새로고침) baseAddress (Preiya 인스턴스): 0x" << std::hex << baseAddress << std::endl;
     }
 }
+/*
+void UpdateUI(HANDLE hProcess) {
+    DWORD_PTR updateUIFunction = 0x18905eb26b8; // OnCanvasPresent() 주소
+
+    HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)updateUIFunction, NULL, 0, NULL);
+    if (hThread) {
+        CloseHandle(hThread);
+        if (DEBUG_MODE) {
+            std::cout << "[DEBUG] UI 업데이트 함수 (OnCanvasPresent) 실행 완료!\n";
+        }
+    }
+    else {
+        std::cout << "[ERROR] UI 업데이트 함수 실행 실패!\n";
+    }
+}
+*/
 
 int main() {
     // 디버깅 모드

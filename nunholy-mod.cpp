@@ -4,7 +4,7 @@
 
 #include <locale>
 #include <codecvt>
-
+#include<iomanip>
 bool DEBUG_MODE = false;
 
 // wchar_t* → std::string 변환 함수
@@ -186,12 +186,18 @@ void DungeonMenu(HANDLE hProcess, DWORD_PTR monoBase, DWORD_PTR unityBase) {
         while (true) {
             int currentBloodStone = 0;
             int currentMaxHealth = 0;
+            int currentHealth = 0;
             float currentSpeed = 0.0f;
             ReadProcessMemory(hProcess, (LPCVOID)bloodStoneAddr, &currentBloodStone, sizeof(currentBloodStone), NULL);
             ReadProcessMemory(hProcess, (LPCVOID)maxHealthAddress, &currentMaxHealth, sizeof(currentMaxHealth), NULL);
+            ReadProcessMemory(hProcess, (LPCVOID)healthAddress, &currentHealth, sizeof(currentHealth), NULL);
             ReadProcessMemory(hProcess, (LPCVOID)speedAddress, &currentSpeed, sizeof(currentSpeed), NULL);
             std::cout << "\n=== 던전 메뉴 ===\n";
-            std::cout << "[현재 BloodStone: " << std::dec << currentBloodStone << "] [현재 최대체력: " << std::dec << currentMaxHealth << "] [현재 이동속도: " << std::dec << currentSpeed << "]\n";
+           // std::cout << "[현재 BloodStone: " << std::dec << currentBloodStone << "] [현재 체력: " << std::dec << currentHealth << "/" << std::dec << currentMaxHealth << "] [현재 이동속도: " << std::dec << currentSpeed << "]\n";
+            std::cout << std::fixed << std::setprecision(2); // 소수점 둘째 자리까지 고정
+            std::cout << "[현재 BloodStone: " << std::dec << currentBloodStone
+                << "] [현재 체력: " << currentHealth << "/" << currentMaxHealth
+                << "] [현재 이동속도: " << currentSpeed << "]\n";
             std::cout << "※ Shield 인스턴스는 아직 연구 중 입니다.\n";
             std::cout << "1. Max Health 변경\n";
             std::cout << "2. Health 변경\n";

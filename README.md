@@ -1,7 +1,7 @@
 ﻿# Nunholy Mod (Memory Editor)
 
 This is a C++ memory editing tool for the game **Nunholy**.  
-It allows real-time editing of core in-game values including character stats and currencies via memory manipulation using the Windows API.
+This tool enables real-time editing of essential in-game values, such as character stats and currencies, through memory manipulation using the Windows API.
 
 ## Features
 
@@ -31,7 +31,7 @@ Functionality may break if the game receives updates or patches.
 ## Requirements
 
 - Windows OS
-- A running instance of **Nunholy** with the window title: `"Nunholy"`
+- A running instance of **Nunholy** (the game window must be open and titled `"Nunholy"`)
 - Visual Studio or compatible C++ compiler
 - Administrator privileges (for `OpenProcess` with `PROCESS_ALL_ACCESS`)
 

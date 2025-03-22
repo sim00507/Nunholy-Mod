@@ -97,23 +97,22 @@ DWORD_PTR ResolveRubyAddress(DWORD_PTR silverAddr) {
     return addr;
 }
 
-DWORD_PTR ResolveBloodStoneAddress(HANDLE hProcess, DWORD_PTR monoBase) {
-    DWORD_PTR addr = monoBase + 0x76F278;
-    DWORD_PTR offsets[] = { 0xC8, 0xA0, 0x50, 0x98, 0x80, 0xB8, 0x270 };
+// "UnityPlayer.dll"+01CB26A8
+DWORD_PTR ResolveBloodStoneAddress(HANDLE hProcess, DWORD_PTR unityBase) {
+    DWORD_PTR addr = unityBase + 0x1CB26A8;
+    DWORD_PTR offsets[] = { 0xF08, 0xCB0, 0x30, 0x18, 0x28, 0xB8, 0x270 };
+
     for (int i = 0; i < 7; i++) {
-        ReadProcessMemory(hProcess, (LPCVOID)addr, &addr, sizeof(addr), NULL);
+        if (!ReadProcessMemory(hProcess, (LPCVOID)addr, &addr, sizeof(addr), NULL)) {
+            std::cout << "[ERROR] 혈석 주소 읽기 실패 at level " << i << std::endl;
+            return 0;
+        }
         addr += offsets[i];
     }
     return addr;
 }
 
-void CurrencyMenu(HANDLE hProcess) {
-    DWORD_PTR monoBase = GetModuleBaseAddress(GetProcessId(hProcess), L"mono-2.0-bdwgc.dll");
-    if (!monoBase) {
-        std::cout << "mono-2.0-bdwgc.dll 찾을 수 없음\n";
-        return;
-    }
-
+void CurrencyMenu(HANDLE hProcess, DWORD_PTR monoBase) {
     DWORD_PTR silverAddr = ResolveSilverAddress(hProcess, monoBase);
     if (!silverAddr) {
         std::cout << "'은화'값의 포인터 체인을 찾을 수 없습니다.\n";
@@ -165,23 +164,13 @@ void CurrencyMenu(HANDLE hProcess) {
     }
 
 }
-void DungeonMenu(HANDLE hProcess) {
-    DWORD_PTR unityPlayerBase = GetModuleBaseAddress(GetProcessId(hProcess), L"UnityPlayer.dll");
-    if (!unityPlayerBase) {
-        std::cout << "UnityPlayer.dll의 베이스 주소를 찾을 수 없습니다." << std::endl;
-        return;
-    }
-    DWORD_PTR monoBase = GetModuleBaseAddress(GetProcessId(hProcess), L"mono-2.0-bdwgc.dll");
-    if (!monoBase) {
-        std::cout << "mono-2.0-bdwgc.dll 찾을 수 없습니다.\n" << std::endl;
-        return;
-    }
+void DungeonMenu(HANDLE hProcess, DWORD_PTR monoBase, DWORD_PTR unityBase) {
     // 포인터 체인 정보 (던전용)
     DWORD_PTR basePointer = 0x01D29E48;
     DWORD_PTR pointerOffsets[] = { 0x58, 0x88, 0x8, 0x18, 0x10, 0x28, 0x90 };
 
     DWORD_PTR baseAddress, maxHealthAddress;
-    RefreshBaseAddress(hProcess, unityPlayerBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
+    RefreshBaseAddress(hProcess, unityBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
 
     DWORD_PTR healthAddress = baseAddress + 0x94;
     DWORD_PTR shieldAddress = baseAddress + 0x98;
@@ -192,10 +181,18 @@ void DungeonMenu(HANDLE hProcess) {
     float newSpeed;
 
 
-    DWORD_PTR bloodStoneAddr = ResolveBloodStoneAddress(hProcess, monoBase);
+    DWORD_PTR bloodStoneAddr = ResolveBloodStoneAddress(hProcess, unityBase);
 
         while (true) {
+            int currentBloodStone = 0;
+            int currentMaxHealth = 0;
+            float currentSpeed = 0.0f;
+            ReadProcessMemory(hProcess, (LPCVOID)bloodStoneAddr, &currentBloodStone, sizeof(currentBloodStone), NULL);
+            ReadProcessMemory(hProcess, (LPCVOID)maxHealthAddress, &currentMaxHealth, sizeof(currentMaxHealth), NULL);
+            ReadProcessMemory(hProcess, (LPCVOID)speedAddress, &currentSpeed, sizeof(currentSpeed), NULL);
             std::cout << "\n=== 던전 메뉴 ===\n";
+            std::cout << "[현재 BloodStone: " << std::dec << currentBloodStone << "] [현재 최대체력: " << std::dec << currentMaxHealth << "] [현재 이동속도: " << std::dec << currentSpeed << "]\n";
+            std::cout << "※ Shield 인스턴스는 아직 연구 중 입니다.\n";
             std::cout << "1. Max Health 변경\n";
             std::cout << "2. Health 변경\n";
             std::cout << "3. Shield 변경\n";
@@ -245,7 +242,7 @@ void DungeonMenu(HANDLE hProcess) {
                 break;
             case 6:
                 std::cout << "새로고침 중...\n";
-                RefreshBaseAddress(hProcess, unityPlayerBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
+                RefreshBaseAddress(hProcess, unityBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
                 std::cout << "새로고침 완료!\n";
                 break;
             case 7:
@@ -259,6 +256,8 @@ void DungeonMenu(HANDLE hProcess) {
 }
 
 int main() {
+
+
     // 디버깅 모드
     std::cout << "디버깅 모드를 활성화할까요? (1: 활성화 / 0: 비활성화): ";
     std::cin >> DEBUG_MODE;
@@ -300,6 +299,20 @@ int main() {
         std::cout << "프로세스를 열 수 없음." << std::endl;
         return -1;
     }
+
+    DWORD_PTR unityBase = GetModuleBaseAddress(GetProcessId(hProcess), L"UnityPlayer.dll");
+    if (!unityBase) {
+        std::cout << "UnityPlayer.dll의 베이스 주소를 찾을 수 없습니다." << std::endl;
+        return -1;
+    }
+
+    DWORD_PTR monoBase = GetModuleBaseAddress(GetProcessId(hProcess), L"mono-2.0-bdwgc.dll");
+    if (!monoBase) {
+        std::cout << "mono-2.0-bdwgc.dll 찾을 수 없습니다.\n" << std::endl;
+        return -1;
+    }
+
+
     int choice;
 
     while (true) {
@@ -311,10 +324,10 @@ int main() {
         std::cin >> choice;
         switch (choice) {
         case 1:
-            DungeonMenu(hProcess);
+            DungeonMenu(hProcess, monoBase, unityBase);
             break;
         case 2:
-            CurrencyMenu(hProcess);
+            CurrencyMenu(hProcess, monoBase);
             break;
         case 3:
             CloseHandle(hProcess);

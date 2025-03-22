@@ -66,13 +66,13 @@ void RefreshBaseAddress(HANDLE hProcess, DWORD_PTR unityPlayerBase, DWORD_PTR ba
 }
 /*
 void UpdateUI(HANDLE hProcess) {
-    DWORD_PTR updateUIFunction = 0x18905eb26b8; // OnCanvasPresent() 주소
+    DWORD_PTR updateUIFunction = 0x23905bbac70;
 
     HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)updateUIFunction, NULL, 0, NULL);
     if (hThread) {
         CloseHandle(hThread);
         if (DEBUG_MODE) {
-            std::cout << "[DEBUG] UI 업데이트 함수 (OnCanvasPresent) 실행 완료!\n";
+            std::cout << "[DEBUG] UI 업데이트 함수 (Awake) 실행 완료!\n";
         }
     }
     else {
@@ -80,6 +80,155 @@ void UpdateUI(HANDLE hProcess) {
     }
 }
 */
+
+void DungeonMenu(HANDLE hProcess) {
+    DWORD_PTR unityPlayerBase = GetModuleBaseAddress(GetProcessId(hProcess), L"UnityPlayer.dll");
+    if (!unityPlayerBase) {
+        std::cout << "UnityPlayer.dll의 베이스 주소를 찾을 수 없습니다." << std::endl;
+        return;
+    }
+
+    // 포인터 체인 정보 (던전용)
+    DWORD_PTR basePointer = 0x01D29E48;
+    DWORD_PTR pointerOffsets[] = { 0x58, 0x88, 0x8, 0x18, 0x10, 0x28, 0x90 };
+
+    DWORD_PTR baseAddress, maxHealthAddress;
+    RefreshBaseAddress(hProcess, unityPlayerBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
+
+    DWORD_PTR healthAddress = baseAddress + 0x94;
+    DWORD_PTR shieldAddress = baseAddress + 0x98;
+    DWORD_PTR speedAddress = baseAddress + 0x9C;
+
+    int choice;
+    DWORD newValue;
+    float newSpeed;
+
+
+    while (true) {
+        std::cout << "\n=== 던전 메뉴 ===\n";
+        std::cout << "1. Max Health 변경\n";
+        std::cout << "2. Health 변경\n";
+        std::cout << "3. Shield 변경\n";
+        std::cout << "4. Speed 변경\n";
+        std::cout << "5. 새로고침\n";
+        std::cout << "6. 돌아가기\n";
+        std::cout << "선택: ";
+        std::cin >> choice;
+
+        switch (choice) {
+        case 1:
+            std::cout << "변경할 Max Health 값을 입력하세요: ";
+            std::cin >> newValue;
+            WriteProcessMemory(hProcess, (LPVOID)(maxHealthAddress), &newValue, sizeof(newValue), NULL);
+            std::cout << "Max Health가 " << std::dec << newValue << "으로 변경되었습니다!\n";
+            // UpdateUI(hProcess);
+            if (DEBUG_MODE) std::cout << "[DEBUG] Max Health 변경 완료: " << newValue << std::endl;
+            break;
+        case 2:
+            std::cout << "변경할 Health 값을 입력하세요: ";
+            std::cin >> newValue;
+            WriteProcessMemory(hProcess, (LPVOID)(healthAddress), &newValue, sizeof(newValue), NULL);
+            std::cout << "Health가 " << std::dec << newValue << "으로 변경되었습니다!\n";
+            if (DEBUG_MODE) std::cout << "[DEBUG] Health 변경 완료: " << newValue << std::endl;
+            break;
+        case 3:
+            std::cout << "변경할 Shield 값을 입력하세요: ";
+            std::cin >> newValue;
+            WriteProcessMemory(hProcess, (LPVOID)(shieldAddress), &newValue, sizeof(newValue), NULL);
+            std::cout << "Shield가 " << std::dec << newValue << "으로 변경되었습니다!\n";
+            if (DEBUG_MODE) std::cout << "[DEBUG] Shield 변경 완료: " << newValue << std::endl;
+            break;
+        case 4:
+            std::cout << "변경할 Speed 값을 입력하세요 (소수점 가능): ";
+            std::cin >> newSpeed;
+            WriteProcessMemory(hProcess, (LPVOID)(speedAddress), &newSpeed, sizeof(newSpeed), NULL);
+            std::cout << "Speed가 " << std::dec << newSpeed << "으로 변경되었습니다!\n";
+            if (DEBUG_MODE) std::cout << "[DEBUG] Speed 변경 완료: " << newSpeed << std::endl;
+            break;
+        case 5:
+            std::cout << "새로고침 중...\n";
+            RefreshBaseAddress(hProcess, unityPlayerBase, basePointer, pointerOffsets, 7, baseAddress, maxHealthAddress);
+            std::cout << "새로고침 완료!\n";
+            break;
+        case 6:
+            // CloseHandle(hProcess);
+            return;
+        default:
+            std::cout << "잘못된 선택입니다. 다시 입력하세요.\n";
+            break;
+        }
+    }
+}
+
+DWORD_PTR ResolveSilverAddress(HANDLE hProcess, DWORD_PTR monoBase) {
+    DWORD_PTR addr = monoBase + 0x774518; // mono-2.0-bdwgc.dll + 0x774518
+    DWORD_PTR offsets[] = { 0x400, 0x640, 0x640, 0x648, 0x18 };
+    for (int i = 0; i < 5; i++) {
+        ReadProcessMemory(hProcess, (LPCVOID)addr, &addr, sizeof(addr), NULL);
+        addr += offsets[i];
+    }
+    return addr;
+}
+
+DWORD_PTR ResolveRubyAddress(DWORD_PTR silverAddr) {
+    DWORD_PTR addr = silverAddr - 0x20;
+    return addr;
+}
+
+void CurrencyMenu(HANDLE hProcess) {
+    DWORD_PTR monoBase = GetModuleBaseAddress(GetProcessId(hProcess), L"mono-2.0-bdwgc.dll");
+    if (!monoBase) {
+        std::cout << "mono-2.0-bdwgc.dll 찾을 수 없음\n";
+        return;
+    }
+
+    DWORD_PTR silverAddr = ResolveSilverAddress(hProcess, monoBase);
+    if (!silverAddr) {
+        std::cout << "'은화'값의 포인터 체인을 찾을 수 없습니다.\n";
+        return;
+    }
+
+    DWORD_PTR rubyAddr = ResolveRubyAddress(silverAddr);
+    if (!rubyAddr) {
+        std::cout << "'루비'값의 포인터 체인을 찾을 수 없습니다.\n";
+        return;
+    }
+
+    int choice;
+    int value;
+    
+    while (true) {
+        std::cout << "\n=== 재화 메뉴 ===\n";
+        std::cout << "1. 실링 값 변경\n";
+        std::cout << "2. 루비 값 변경\n";
+        std::cout << "3. 돌아가기\n";
+        std::cout << "선택: ";
+        std::cin >> choice;
+
+        switch (choice) {
+        case 1:
+            std::cout << "변경할 실링 값을 입력하세요.\n";
+            std::cin >> value;
+            WriteProcessMemory(hProcess, (LPVOID)silverAddr, &value, sizeof(value), NULL);
+            std::cout << "실링 값이 " << std::dec << value << " 으로 변경되었습니다!\n";
+            break;
+        case 2:
+            std::cout << "변경할 루비 값을 입력하세요.\n";
+            std::cin >> value;
+            WriteProcessMemory(hProcess, (LPVOID)rubyAddr, &value, sizeof(value), NULL);
+            std::cout << "루비 값이 " << std::dec << value << " 으로 변경되었습니다!\n";
+            break;
+        case 3:
+            // CloseHandle(hProcess);
+            return;
+        default:
+            std::cout << "잘못된 선택입니다. 다시 입력하세요.\n";
+            break;
+        }
+    }
+
+}
+
 
 int main() {
     // 디버깅 모드
@@ -123,55 +272,37 @@ int main() {
         std::cout << "프로세스를 열 수 없음." << std::endl;
         return -1;
     }
-
-    DWORD_PTR unityPlayerBase = GetModuleBaseAddress(pid, L"UnityPlayer.dll");
-    if (!unityPlayerBase) {
-        std::cout << "UnityPlayer.dll의 베이스 주소를 찾을 수 없음." << std::endl;
-        CloseHandle(hProcess);
-        return -1;
-    }
-
-    // 포인터 체인 정보
-    DWORD_PTR basePointer = 0x01D29E48;  // UnityPlayer.dll 내부 오프셋
-    DWORD_PTR pointerOffsets[] = { 0x58, 0x88, 0x8, 0x18, 0x10, 0x28, 0x90 }; // Offset 체인
-
-    // maxHealth 주소
-    DWORD_PTR maxHealthAddress = GetDynamicAddress(hProcess, unityPlayerBase + basePointer, pointerOffsets, 7);
-
-    // 찾은 maxHealth로 baseAddress 구하기
-    DWORD_PTR baseAddress = maxHealthAddress - 0x90;
-
-    if (DEBUG_MODE) {
-        std::cout << "[DEBUG] maxHealthAddress: 0x" << std::hex << maxHealthAddress << std::endl;
-        std::cout << "[DEBUG] baseAddress (Preiya 인스턴스): 0x" << std::hex << baseAddress << std::endl;
-    }
-
-    // 찾은 오프셋들
-    DWORD_PTR healthAddress = baseAddress + 0x94;
-    DWORD_PTR shieldAddress = baseAddress + 0x98;
-    DWORD_PTR speedAddress = baseAddress + 0x9C;
-
     int choice;
-    DWORD newValue;
-    float newSpeed;
 
     while (true) {
-        std::cout << "\n===== 값 변경 메뉴 =====\n";
-        std::cout << "1. Max Health 변경\n";
-        std::cout << "2. Health 변경\n";
-        std::cout << "3. Shield 변경\n";
-        std::cout << "4. Speed 변경\n";
-        std::cout << "5. 새로고침 (던전 입장 후 다시 찾기)\n";
-        std::cout << "6. 종료\n";
+        std::cout << "\n===== 메뉴 =====\n";
+        std::cout << "1. 던전 기능 (체력 등)\n";
+        std::cout << "2. 재화 기능 (실링 등)\n";
+        std::cout << "3. 종료\n";
         std::cout << "선택: ";
         std::cin >> choice;
-
+        switch (choice) {
+        case 1:
+            DungeonMenu(hProcess);
+            break;
+        case 2:
+            CurrencyMenu(hProcess);
+            break;
+        case 3:
+            CloseHandle(hProcess);
+            return 0;
+        default:
+            std::cout << "잘못된 선택입니다.\n";
+            break;
+        }
+        /*
         switch (choice) {
         case 1:
             std::cout << "변경할 Max Health 값을 입력하세요: ";
             std::cin >> newValue;
             WriteProcessMemory(hProcess, (LPVOID)(maxHealthAddress), &newValue, sizeof(newValue), NULL);
             std::cout << "Max Health가 " << std::dec << newValue << "으로 변경되었습니다!\n";
+           // UpdateUI(hProcess);
             if (DEBUG_MODE) std::cout << "[DEBUG] Max Health 변경 완료: " << newValue << std::endl;
             break;
         case 2:
@@ -207,6 +338,7 @@ int main() {
             std::cout << "잘못된 선택입니다. 다시 입력하세요.\n";
             break;
         }
+        */
     }
 
     CloseHandle(hProcess);
